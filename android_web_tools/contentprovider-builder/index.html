@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+	<title>ContentProvider Builder</title>
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Bootstrap -->
+    <link href="css/bootstrap.min.css" rel="stylesheet" media="screen">
+    <link href="css/bootstrap-responsive.min.css" rel="stylesheet">
+    <link href="css/custom.css" rel="stylesheet">
+
+    <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+      <script src="../../assets/js/html5shiv.js"></script>
+      <script src="../../assets/js/respond.min.js"></script>
+    <![endif]-->
+	<script type="text/javascript" src="js/jquery-1.10.2.min.js"></script> 
+	<script type="text/javascript" src="js/jhash-2.1.js"></script> 
+
+<script type="text/html" id="new_field_tmpl">
+<div class="control-group"> 
+ <div class="controls" id="{%=varCount%}">
+    <input id="field{%=varCount%}" name="field{%=varCount%}" type="text" placeholder="" class="input-xlarge" required=""> 
+    <select id="field_type{%=varCount%}"><option value="INTEGER">integer</option><option value="TEXT">text</option><option value="REAL">real</option></select>
+    <input id="field_defaultvalue{%=varCount%}" name="field_defaultvalue{%=varCount%}" type="text" placeholder="default value" class="input-xlarge"> 
+    <button id="remove" name="remove" class="btn btn-danger">Remove</button>
+    <br /> <input type="checkbox" id="field_unique{%=varCount%}" autocomplete="off"/> Unique <input type="checkbox" id="field_notnull{%=varCount%}" autocomplete="off"/> Not null <input type="radio" name="shouldSort" value="field{%=varCount%}"/> Sort on this 
+ </div>
+</div>
+</script>
+
+<script type="text/html" id="contract_static_field_tmpl">
+	public static final String COLUMN_NAME_{%=upperFieldName%} = "{%=fieldName.toLowerCase()%}";\n
+</script>
+
+
+<script type="text/html" id="provider_class_tmpl"> 
+<pre>
+package {%=packageName%};\n\n
+
+/**\n
+ * Generated from {%=web_url%}\n
+ */\n\n
+
+import java.util.ArrayList;\n
+import java.util.HashMap;\n
+import java.util.HashSet;\n
+import java.util.LinkedList;\n
+import java.util.Locale;\n
+import java.util.Set;\n
+\n
+import android.content.ContentProvider;\n
+import android.content.ContentProviderOperation;\n
+import android.content.ContentProviderResult;\n
+import android.content.ContentUris;\n
+import android.content.ContentValues;\n
+import android.content.Context;\n
+import android.content.OperationApplicationException;\n
+import android.content.UriMatcher;\n
+import android.database.Cursor;\n
+import android.database.sqlite.SQLiteDatabase;\n
+import android.database.sqlite.SQLiteOpenHelper;\n
+import android.database.sqlite.SQLiteQueryBuilder;\n
+import android.net.Uri;\n
+import android.provider.BaseColumns;\n
+import android.text.TextUtils;\n
+import android.util.Log;\n 
+\n
+/**\n
+ * Provides access to a database of {%=tableName%}.\n
+ */\n
+public class {%=providerName%} extends ContentProvider {\n
+\n
+	private volatile boolean mNotificationsSuspended;\n
+	private LinkedList&lt;Uri&gt; mSuspendedNotifications = new LinkedList&lt;Uri&gt;();\n
+	private Set&lt;Uri&gt; mSuspendedNotificationsSet = new HashSet&lt;Uri&gt;();\n
+\n
+	static class ProviderDatabaseHelper extends SQLiteOpenHelper {\n
+		/**\n
+		 * The database that the provider uses as its underlying data store\n
+		 */\n
+		private static final String DATABASE_NAME = "{%=tableName%}.db";\n
+		/**\n
+		 * The database version\n
+		 */\n
+		private static final int DATABASE_VERSION = 1;\n
+		@SuppressWarnings("unused")\n
+		private Context mContext;\n
+\n
+		/**\n
+		 * Creates a new DatabaseHelper\n
+		 * \n
+		 * @param context\n
+		 *            context of this database\n
+		 */\n
+		ProviderDatabaseHelper(final Context context) {\n
+			super(context, DATABASE_NAME, null, DATABASE_VERSION);\n
+			mContext = context;\n
+		}\n
+\n
+		/**\n
+		 * Creates the underlying database with table name and column names\n
+		 * taken from the ColorContract class.\n
+		 */\n
+		@Override\n
+		public void onCreate(final SQLiteDatabase db) {\n 
+\n
+			{%=tableSql%}
+\n
+		}\n
+\n
+		/**\n
+		 * \n
+		 * Demonstrates that the provider must consider what happens when the\n
+		 * underlying database is changed.\n
+		 */\n
+		@Override\n
+		public void onUpgrade(final SQLiteDatabase db, final int oldVersion,\n
+				final int newVersion) {\n
+			Log.w({%=providerName%}.class.getSimpleName(),\n
+					"Upgrading database from version " + oldVersion + " to "\n
+							+ newVersion + ", which will destroy all old data");\n
+			// db.execSQL("DROP TABLE IF EXISTS " +\n
+			// {%=contractName%}.{%=tableName%}.TABLE_NAME);\n
+\n
+			this.onCreate(db);\n
+		}\n
+	}\n
+\n
+	/**\n
+	 * A UriMatcher instance\n
+	 */\n
+	private static final UriMatcher uriMatcher = {%=providerName%}\n
+			.buildUriMatcher();\n
+\n
+	private static final int {%=tableName.toUpperCase()%}_ID = 2;\n
+	private static final int {%=tableName.toUpperCase()%} = 1;\n
+\n
+	/**\n
+	 * Creates and initializes the URI matcher\n
+	 * \n
+	 * @return the URI Matcher\n
+	 */\n
+	private static UriMatcher buildUriMatcher() {\n
+		final UriMatcher matcher = new UriMatcher(UriMatcher.NO_MATCH);\n
+\n
+		matcher.addURI({%=contractName%}.AUTHORITY, "{%=tableName%}",\n
+				{%=providerName%}.{%=tableName.toUpperCase()%});\n
+\n
+		matcher.addURI({%=contractName%}.AUTHORITY, "{%=tableName%}/#",\n
+				{%=providerName%}.{%=tableName.toUpperCase()%}_ID);\n
+\n
+		return matcher;\n
+	}\n
+\n
+	/**\n
+	 * Handle to a new DatabaseHelper.\n
+	 */\n
+	private ProviderDatabaseHelper databaseHelper;\n
+\n
+	@Override\n
+	public int delete(final Uri uri, final String where,\n
+			final String[] whereArgs) {\n
+		// Opens the database object in "write" mode.\n
+		final SQLiteDatabase db = databaseHelper.getWritableDatabase();\n
+		int count;\n
+		// Does the delete based on the incoming URI pattern.\n
+		switch ({%=providerName%}.uriMatcher.match(uri)) {\n
+		case {%=tableName.toUpperCase()%}:\n
+			// If the incoming pattern matches the general pattern for {%=modelName%}s,\n
+			// does a delete based on the\n
+			// incoming "where" columns and arguments.\n
+			count = db.delete({%=contractName%}.{%=modelName%}.TABLE_NAME, where,\n
+					whereArgs);\n
+			break;\n
+		default:\n
+			throw new IllegalArgumentException("Unknown URI " + uri);\n
+		}\n
+		getContext().getContentResolver().notifyChange(uri, null);\n
+		return count;\n
+	}\n
+\n
+	@Override\n
+	public String getType(final Uri uri) {\n
+		/**\n
+		 * Chooses the MIME type based on the incoming URI pattern\n
+		 */\n
+		switch ({%=providerName%}.uriMatcher.match(uri)) {\n
+		case {%=tableName.toUpperCase()%}:\n
+			// If the pattern is for {%=modelName%}s, returns the general content type.\n
+			return {%=contractName%}.{%=modelName%}.CONTENT_TYPE;\n
+		case {%=tableName.toUpperCase()%}_ID:\n
+			// If the pattern is for {%=modelName%} IDs, returns the {%=modelName%} ID content\n
+			// type.\n
+			return {%=contractName%}.{%=modelName%}.CONTENT_ITEM_TYPE;\n
+\n
+		default:\n
+			throw new IllegalArgumentException("Unknown URI " + uri);\n
+		}\n
+	}\n
+\n
+	@Override\n
+	public Uri insert(final Uri uri, final ContentValues initialValues) {\n
+		switch ({%=providerName%}.uriMatcher.match(uri)) {\n
+		case {%=tableName.toUpperCase()%}:\n
+			// insert a specific {%=modelName%}\n
+			return insert{%=modelName%}(uri, initialValues);\n
+		default:\n
+			throw new IllegalArgumentException("Unknown URI " + uri);\n
+		}\n
+	}\n
+\n
+	private Uri insert{%=modelName%}(final Uri uri, final ContentValues initialValues) {\n
+		ContentValues values;\n
+		if (initialValues != null) {\n
+			values = new ContentValues(initialValues);\n
+		} else {\n
+			values = new ContentValues();\n
+		}\n
+\n
+		final SQLiteDatabase db = databaseHelper.getWritableDatabase();\n
+\n/**
+		//String selection = {%=contractName%}.{%=modelName%}.COLUMN_NAME_SEGMENT_NAME\n
+				+ "=? OR " + {%=contractName%}.{%=modelName%}.COLUMN_NAME_SEGMENT_ID\n
+				+ " =?";\n
+		String[] selectionArgs = new String[] {\n
+				values.getAsString({%=contractName%}.{%=tableName%}.COLUMN_NAME_SEGMENT_NAME),\n
+				values.getAsString({%=contractName%}.{%=tableName%}.COLUMN_NAME_SEGMENT_ID) };\n
+\n
+		// Do an update if the constraints match\n
+		db.update({%=contractName%}.{%=tableName%}.TABLE_NAME, values, selection,\n
+				selectionArgs);\n
+\n
+		final long rowId = db.insertWithOnConflict(\n
+				{%=contractName%}.{%=tableName%}.TABLE_NAME,\n
+				{%=contractName%}.{%=tableName%}.COLUMN_NAME_SEGMENT_NAME, values,\n
+				SQLiteDatabase.CONFLICT_IGNORE);\n
+		// If the insert succeeded, the row ID exists.\n
+		if (rowId > 0) {\n
+			// Creates a URI with the {%=modelName%} ID pattern and the new row ID\n
+			// appended to it.\n
+			final Uri inserUri = ContentUris.withAppendedId(\n
+					{%=contractName%}.{%=tableName%}.CONTENT_ID_URI_BASE, rowId);\n
+\n
+			notifyChange(uri);\n
+\n
+			return inserUri;\n
+		}\n
+		**/
+		return uri;\n
+\n
+	}\n
+\n
+	/**\n
+	 * Creates the underlying DatabaseHelper\n
+	 * \n
+	 * @see android.content.ContentProvider#onCreate()\n
+	 */\n
+	@Override\n
+	public boolean onCreate() {\n
+		databaseHelper = new ProviderDatabaseHelper(getContext());\n
+		return true;\n
+	}\n
+\n
+	@Override\n
+	public Cursor query(final Uri uri, final String[] projection,\n
+			final String selection, final String[] selectionArgs,\n
+			final String sortOrder) {\n
+\n
+		switch ({%=providerName%}.uriMatcher.match(uri)) {\n
+		case {%=tableName.toUpperCase()%}:\n
+		case {%=tableName.toUpperCase()%}_ID:\n
+			// insert a specific {%=modelName%}\n
+			return query{%=modelName%}(uri, projection, selection, selectionArgs,\n
+					sortOrder);\n
+		default:\n
+			return null;\n
+		}\n
+\n
+	}\n
+\n
+	private Cursor query{%=modelName%}(final Uri uri, final String[] projection,\n
+			final String selection, final String[] selectionArgs,\n
+			final String sortOrder) {\n
+		// Constructs a new query builder and sets its table name\n 
+		final SQLiteQueryBuilder qb = new SQLiteQueryBuilder();\n
+		qb.setTables({%=contractName%}.{%=tableName%}.TABLE_NAME);\n
+		final HashMap&lt;String, String&gt; allColumnProjectionMap = new HashMap&lt;String, String&gt;();\n
+		allColumnProjectionMap.put(BaseColumns._ID, BaseColumns._ID);\n
+		
+	{%=projectionMap%}
+\n
+		qb.setProjectionMap(allColumnProjectionMap);\n
+
+		switch ({%=providerName%}.uriMatcher.match(uri)) {\n
+		case {%=modelName.toUpperCase()%}:\n
+			break;\n
+		case {%=modelName.toUpperCase()%}_ID:\n
+			// If the incoming URI is for a single item identified by its ID,\n
+			// appends "_ID = <{%=modelName%}ID>"\n
+			// to the where clause, so that it selects that single item\n
+			qb.appendWhere(BaseColumns._ID\n
+					+ "="\n
+					+ uri.getPathSegments().get(\n
+							{%=contractName%}.{%=tableName%}.ID_PATH_POSITION));\n
+			break;\n
+		}\n
+		String orderBy;\n
+		if (TextUtils.isEmpty(sortOrder)) {\n
+			orderBy = {%=contractName%}.{%=tableName%}.DEFAULT_SORT_ORDER;\n
+		} else {\n
+			orderBy = sortOrder;\n
+		}\n
+		final SQLiteDatabase db = databaseHelper.getReadableDatabase();\n
+		final Cursor c = qb.query(db, projection, selection, selectionArgs,\n
+				null, null, orderBy);\n
+		c.setNotificationUri(getContext().getContentResolver(), uri);\n
+		return c;
+	}\n
+\n
+	@Override\n
+	public int update(final Uri uri, final ContentValues values,\n
+			final String selection, final String[] selectionArgs) {\n
+\n
+		switch ({%=providerName%}.uriMatcher.match(uri)) {\n
+		case {%=tableName.toUpperCase()%}:\n
+		case {%=tableName.toUpperCase()%}_ID:\n
+			// insert a specific {%=modelName%}\n
+			return update{%=modelName%}(uri, values, selection, selectionArgs);\n
+		default:\n
+			return 0;\n
+		}\n
+	}\n
+\n
+	private int update{%=modelName%}(final Uri uri, final ContentValues values,\n
+			final String selection, final String[] selectionArgs) {\n
+\n
+		final SQLiteDatabase db = databaseHelper.getWritableDatabase();\n
+		int count = 0;\n
+		switch ({%=providerName%}.uriMatcher.match(uri)) {\n
+		case {%=tableName.toUpperCase()%} :\n
+			// If the incoming URI matches the general items pattern, does the\n
+			// update based on the incoming\n
+			// data.\n
+			count = db.update({%=contractName%}.{%=tableName%}.TABLE_NAME, values,\n
+					selection, selectionArgs);\n
+			break;\n
+		case {%=tableName.toUpperCase()%}_ID:\n
+			// If the incoming URI matches a single item ID, does the update\n
+			// based on the incoming data, but\n
+			// modifies the where clause to restrict it to the particular item\n
+			// ID.\n
+			String finalWhere = BaseColumns._ID\n
+					+ " = "\n
+					+ uri.getPathSegments().get(\n
+							{%=contractName%}.{%=modelName%}.ID_PATH_POSITION);\n
+			// If there were additional selection criteria, append them to the\n
+			// final WHERE clause\n
+			if (selection != null) {\n
+				finalWhere = finalWhere + " AND " + selection;\n
+			}\n
+			count = db.update({%=contractName%}.{%=modelName%}.TABLE_NAME, values,\n
+					finalWhere, selectionArgs);\n
+			break;\n
+		default:\n
+			throw new IllegalArgumentException("Unknown URI " + uri);\n
+		}\n
+		notifyChange(uri);\n
+		return count;\n
+	}\n
+\n
+	@Override\n
+	public ContentProviderResult[] applyBatch(\n
+			ArrayList&lt;ContentProviderOperation&gt; operations)\n
+			throws OperationApplicationException {\n
+		setNotificationsSuspended(true);\n
+		databaseHelper.getWritableDatabase().beginTransaction();\n
+		ContentProviderResult[] result = null;\n
+		try {\n
+			result = super.applyBatch(operations);\n
+			databaseHelper.getWritableDatabase().setTransactionSuccessful();\n
+		} finally {\n
+			databaseHelper.getWritableDatabase().endTransaction();\n
+		}\n
+		setNotificationsSuspended(false);\n
+		return result;\n
+	}\n
+\n
+	protected void setNotificationsSuspended(boolean suspended) {\n
+		mNotificationsSuspended = suspended;\n
+		if (!suspended) {\n
+			notifyOutstandingChanges();\n
+		}\n
+	}\n
+\n
+	protected void notifyOutstandingChanges() {\n
+		Uri uri;\n
+		while ((uri = mSuspendedNotifications.poll()) != null) {\n
+			getContext().getContentResolver().notifyChange(uri, null);\n
+			mSuspendedNotificationsSet.remove(uri);\n
+		}\n
+	}\n
+\n
+	protected void notifyChange(Uri uri) {\n
+		if (mNotificationsSuspended) {\n
+			synchronized (mSuspendedNotificationsSet) {\n
+				if (mSuspendedNotificationsSet.contains(uri)) {\n
+					mSuspendedNotifications.remove(uri);\n
+				}\n
+				mSuspendedNotifications.add(uri);\n
+				mSuspendedNotificationsSet.add(uri);\n
+			}\n
+		} else {\n
+			getContext().getContentResolver().notifyChange(uri, null);\n
+		}\n
+	}\n
+\n 
+\n
+}\n
+\n
+</pre>
+</script>
+
+<script type="text/html" id="contract_class_tmpl"> 
+<pre>
+package {%=packageName%};\n\n
+
+/**\n
+ * Generated from {%=web_url%}\n
+ */\n\n
+
+import android.net.Uri;\n
+import android.provider.BaseColumns;\n
+\n
+public class {%=contractName%} {\n
+	public static final class {%=modelName%} implements BaseColumns {\n
+\n
+{%=staticFields%}
+
+		/**\n
+		 * The content URI base for a single item. Callers must append a numeric\n
+		 * segment id to this Uri to retrieve an item\n
+		 */\n
+		public static final Uri CONTENT_ID_URI_BASE = Uri.parse({%=contractName%}.SCHEME + {%=contractName%}.AUTHORITY\n
+				+ "/" + {%=modelName%}.TABLE_NAME + "/");\n
+		/**\n
+		 * The MIME type of a {@link #CONTENT_URI} single item.\n
+		 */\n
+		public static final String CONTENT_ITEM_TYPE = "vnd.android.cursor.item/vnd.npike.{%=tableName.toLowerCase()%}";\n
+\n
+		/**\n
+		 * The MIME type of a {@link #CONTENT_URI} a list of items.\n
+		 */\n
+		public static final String CONTENT_TYPE = "vnd.android.cursor.dir/vnd.npike.{%=tableName.toLowerCase()%}";\n
+\n
+		/**\n
+		 * The content:// style URL for this table\n
+		 */\n
+		public static final Uri CONTENT_URI = Uri.parse({%=contractName%}.SCHEME + {%=contractName%}.AUTHORITY + "/"\n
+				+ {%=modelName%}.TABLE_NAME);\n
+		/**\n
+		 * The default sort order for this table\n
+		 */\n
+		public static final String DEFAULT_SORT_ORDER = {%=modelName%}.COLUMN_NAME_{%=sortColumn.toUpperCase()%} + " {%=sortDirection%}";\n
+		/**\n
+		 * The table name offered by this provider\n
+		 */\n
+		public static final String TABLE_NAME = "{%=tableName%}";\n
+		/**\n
+		 * 0-relative position of a {%=modelName%} ID segment in the path part of a {%=modelName%}\n
+		 * ID URI\n
+		 */\n
+		public static final int ID_PATH_POSITION = 1;\n
+\n
+		/**\n
+		 * This class cannot be instantiated\n
+		 */\n
+		private {%=modelName%}() {\n
+		}\n
+	}\n
+\n
+	/**\n
+	 * Base authority for this content provider\n
+	 */\n
+	public static final String AUTHORITY = "{%=authority%}";\n
+	/**\n
+	 * The scheme part for this provider's URI\n
+	 */\n
+	private static final String SCHEME = "content://";\n
+\n
+	/**\n
+	 * This class cannot be instantiated\n
+	 */\n
+	private {%=contractName%}() {\n
+	}\n
+}\n
+</pre>
+</script>
+
+<script type="text/javascript">
+
+// Simple JavaScript Templating
+// John Resig - http://ejohn.org/ - MIT Licensed
+// http://ejohn.org/blog/javascript-micro-templating/
+(function(){
+  var cache = {};
+ 
+  this.tmpl = function tmpl(str, data){
+    // Figure out if we're getting a template, or if we need to
+    // load the template - and be sure to cache the result.
+    var fn = !/\W/.test(str) ?
+      cache[str] = cache[str] ||
+        tmpl(document.getElementById(str).innerHTML) :
+     
+      // Generate a reusable function that will serve as a template
+      // generator (and which will be cached).
+      new Function("obj",
+        "var p=[],print=function(){p.push.apply(p,arguments);};" +
+       
+        // Introduce the data as local variables using with(){}
+        "with(obj){p.push('" +
+       
+        // Convert the template into pure JavaScript
+        str.replace(/[\r\t\n]/g, " ")
+   .replace(/'(?=[^%]*%})/g,"\t")
+   .split("'").join("\\'")
+   .split("\t").join("'")
+   .replace(/{%=(.+?)%}/g, "',$1,'")
+   .split("{%").join("');")
+   .split("%}").join("p.push('")
+   + "');}return p.join('');");
+   
+    // Provide some basic currying to the user
+    return data ? fn( data ) : fn;
+  };
+})();
+
+
+
+function capitaliseFirstLetter(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+}
+
+function buildTable() {
+	console.log(varCount)
+	console.log($("#table_name").val())
+
+	var tempOutput = ""
+	var contractName = $("#input_cp_name").val() + "Contract"
+	var tableName = capitaliseFirstLetter($("#table_name").val())
+
+	var packageName = "net.npike.android"
+	if ($("#input_package_name").val() != '') {
+		packageName = $("#input_package_name").val()
+	}
+
+	for (var x = 1; x <= varCount; x++) {
+		var rawField = $("#field"+x).val();
+		if (rawField != undefined) {
+			var fieldName = formatFieldName(rawField); 
+
+
+			var data={fieldName: fieldName, upperFieldName: fieldName.toUpperCase()} 
+			tempOutput += tmpl("contract_static_field_tmpl", data);
+		}
+	}
+
+	// var sortColumnIndex = $('input[name = "shouldSort"]').val();
+	var sortColumnIndex = $("input[type='radio'][name='shouldSort']:checked").val();
+	console.log("sortColumn index: "+sortColumnIndex);
+	var sortColumn = $("#"+sortColumnIndex).val();
+
+	var sortDirection = $("#table_sort").val();
+
+
+	var data={contractName:contractName, modelName: $("#table_name").val(), tableName: tableName, authority: $("#input_cp_authority").val(), staticFields: tempOutput, sortColumn: sortColumn, sortDirection: sortDirection, web_url: window.location, packageName: packageName}
+	var contractClass = tmpl("contract_class_tmpl", data)
+
+
+	$("#output").html(contractClass)
+
+
+
+	// build provider class
+	var tableSql = buildSql(contractName, tableName);
+
+	// build out a projection map based on the field names
+	var projectionMap = "";
+	for (var x = 1; x <= varCount; x++) {
+		var rawField = $("#field"+x).val();
+		if (rawField != undefined) {
+			var fieldName = formatFieldName(rawField); 
+
+			projectionMap += '\tallColumnProjectionMap.put(\n'+contractName+'.'+tableName+'.COLUMN_NAME_'+fieldName.toUpperCase()+',\n'+contractName+'.'+tableName+'.COLUMN_NAME_'+fieldName.toUpperCase()+');\n'
+		}
+	}
+
+	var providerData = {tableName: tableName, providerName: $("#input_cp_name").val(), contractName: contractName, tableSql: tableSql, modelName: $("#table_name").val(), projectionMap: projectionMap, web_url: window.location, packageName: packageName}
+	$("#provider_output").html(tmpl("provider_class_tmpl", providerData))
+}
+
+function formatFieldName(fieldName) {
+	return fieldName.replace(/\s/g,"_");
+}
+
+function buildSql(contractName, tableName) {
+	tableSql = 'db.execSQL("CREATE TABLE " + '+contractName+'.'+tableName+'.TABLE_NAME \n\
+		+ " (" + BaseColumns._ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"\n';
+
+	for (var x = 1; x <= varCount; x++) {
+		var rawField = $("#field"+x).val();
+		if (rawField != undefined) {
+			var fieldName = formatFieldName(rawField); 
+			var fieldType = $("#field_type"+x).val();
+			var defaultValue = $("#field_defaultvalue"+x).val();
+
+			tableSql += '		+ '+contractName+'.'+tableName+'.COLUMN_NAME_'+fieldName.toUpperCase() + ' + " '+fieldType;
+
+			// not null support
+			if ($("#field_notnull"+x).prop("checked")) {
+				tableSql += ' NOT NULL'
+			}
+
+			if (defaultValue) {
+				if (fieldType === "TEXT") {
+					defaultValue = "'"+defaultValue+"'";
+				}
+
+				tableSql += ' DEFAULT ' + defaultValue
+			}
+
+			if (x < varCount) {
+				tableSql +=', '
+			}
+
+			tableSql += '"\n';
+		}
+	}
+
+	// find all of the unique columns
+	var foundUnique = false;
+	for (var x = 1; x <= varCount; x++) {
+		var rawField = $("#field"+x).val();
+		if (rawField != undefined) {
+			var fieldName = formatFieldName(rawField); 
+			var isUnique = $("#field_unique"+x).prop("checked");
+
+			if (isUnique) {
+				if (!foundUnique) {
+					foundUnique = true;
+					tableSql +=  '		+ ", UNIQUE ('
+				} else {
+					tableSql += " , "
+				}
+				tableSql += "'\"+"+contractName+"."+tableName+".COLUMN_NAME_"+fieldName.toUpperCase() + "+\"'"
+				
+			}
+		}
+	}
+
+	if (foundUnique) {
+		// close out the unique list
+		tableSql += ")"
+
+		// add conflict resolution strategy
+		tableSql += " ON CONFLICT "+$("#conflict_resolution").val()	+  ');");'
+	} else {
+		tableSql += '		+ ");");'
+	}
+
+
+
+	
+
+	return tableSql;
+}
+
+var inputMap = {};
+
+varCount = 1;
+function init() { 
+
+	// populate all the forms with data from URL and create new fields if required
+	console.log(jHash.root())
+	inputMap = jHash.val()  
+
+
+
+	bindChangeListener("#input_package_name")
+	bindChangeListener("#input_cp_name")
+	bindChangeListener("#input_cp_authority")
+	bindChangeListener("#table_name")
+	bindChangeListener("#table_sort")
+	bindChangeListener("#conflict_resolution")
+ 
+	bindChangeListener("#field1")
+	bindChangeListener("#field_type1") 
+	bindChangeListener("#field_unique1")
+	bindChangeListener("#field_notnull1")
+	bindChangeListener("#field_defaultvalue1")
+
+
+	$("#field_type1").change();
+
+	// does the inputMap contain fields pass field1 that we need to readd?
+	console.log("There are "+inputMap["fields"]+ " fields saved.")
+
+	for (var x = 1; x < inputMap["fields"]; x++) {
+		
+
+		// is there something worth restoring?
+		if (inputMap['field'+(x+1)] != "" && inputMap['field'+(x+1)] != undefined) {
+			console.log("Restoring field "+(x+1))
+			$('#addField').each(addNewField)
+		} else {
+			console.log("Looks like field"+(x+1)+" doesn't actually contain anything..");
+			varCount++;
+		}
+	}
+
+	// restore selected radioButton for sorting
+	$('input[name="shouldSort"]').each(function() { 
+
+		if ($(this).val() == inputMap["sortbyfield"]) { 
+			$(this).attr('checked', true);
+			return
+		}
+		
+	});
+
+	// setup change listener on radioGroup for row sorting
+	$('input[name="shouldSort"]').change(function(e) { // Select the radio input group
+
+	    // This returns the value of the checked radio button
+	    // which triggered the event.
+	    console.log( "shouldSort: " +$(this).val() ); 
+	 
+	    $('#sortByField').val($(this).val())
+	    jHash.val("sortByField", $(this).val())
+	});
+
+	
+}
+
+function bindChangeListener(field) {
+	if ($(field) == undefined) {
+		console.log("WARNING: Attempted to bind to undefined field "+field)
+		return
+	}
+	 if ($(field).is("select")) {
+	 	// restore this fields value if available in inputMap
+		if (inputMap[$(field).attr('id')] != undefined) {
+			$(field).val(inputMap[$(field).attr('id')])
+		}
+
+		$(field).change(function() {
+			storeValue($(this).attr('id'), $(this).val())
+		}); 
+	} else {
+		if (!$(field).is("input")) {
+			console.log("WARNING: Unsupported input type ("+$(field).prop('tagName')+") to bind to on "+field+".")
+		}
+
+
+
+		// restore this fields value if available in inputMap
+		if (inputMap[$(field).attr('id')] != undefined) {
+			$(field).val(inputMap[$(field).attr('id')])
+		} 
+		
+		console.log($(field).attr('type'))
+
+		if ($(field).attr('type') == "radio") {
+			$(field).change(function() {
+				storeValue($(this).attr('id'), $(this).val())
+			}); 
+		} else if ($(field).attr('type') == "checkbox") { 
+			console.log(inputMap[$(field).attr('id')]);
+			if (inputMap[$(field).attr('id')] != undefined) {
+				$(field).prop('checked', "checked");
+			}
+			$(field).change(function() {
+				if ($(this).prop('checked')) {
+					storeValue($(this).attr('id'), 1)
+				} else {
+					jHash.val($(this).attr('id'), undefined)
+				}
+				
+			});
+		} else {
+			$(field).bind('input', function() {
+				storeValue($(this).attr('id'), $(this).val())
+			});
+		}
+
+		 
+	}
+	
+}
+
+$.fn.selectText = function () {
+    return $(this).each(function (index, el) {
+        if (document.selection) {
+            var range = document.body.createTextRange();
+            range.moveToElementText(el);
+            range.select();
+        } else if (window.getSelection) {
+            var range = document.createRange();
+            range.selectNode(el);
+            window.getSelection().addRange(range);
+        }
+    });
+}
+
+function storeValue(keyName, keyValue) {
+	console.log("storeValue "+keyName+"=>"+keyValue)
+	inputMap[keyName] = keyValue;
+ 
+	jHash.val(keyName, keyValue)
+}
+
+</script>
+</head>
+<body onLoad="init()">
+   <div class="navbar navbar-fixed-top">
+      <div class="navbar-inner">
+         <div class="container">
+            <a class="brand" href="#">Android Web Tools</a>
+         </div>
+      </div>
+   </div>
+   <div class="container">
+   <div class="row clearfix">
+      <div class="span40">
+         <div class="clearfix">
+            <form class="form-horizontal">
+               <fieldset>
+                  <!-- Form Name -->
+                  <legend>Content Provider Builder</legend>
+                  <!-- Text input-->
+                  <div class="control-group">
+                     <label class="control-label" for="input_package_name">Package name (optional)</label>
+                     <div class="controls">
+                        <input id="input_package_name" name="input_package_name" type="text" placeholder="net.npike.android" class="input-xlarge"> 
+                     </div>
+                  </div>
+                  <div class="control-group">
+                     <label class="control-label" for="input_cp_name">Content Provider Name</label>
+                     <div class="controls">
+                        <input id="input_cp_name" name="input_cp_name" type="text" placeholder="MyContentProvider" class="input-xlarge"> 
+                     </div>
+                  </div>
+                  <!-- Text input-->
+                  <div class="control-group">
+                     <label class="control-label" for="input_cp_authority">Authority</label>
+                     <div class="controls">
+                        <input id="input_cp_authority" name="input_cp_authority" type="text" placeholder="com.example.provider.MyContentProvider" class="input-xlarge"> 
+                     </div>
+                  </div> 
+                  <!-- Form Name -->
+                  <legend>Table info</legend>
+       
+                  <!-- Text input-->
+                  <div class="control-group">
+                     <label class="control-label" for="table_name">Table name</label>
+                     <div class="controls">
+                        <input id="table_name" name="table_name" type="text" placeholder="ModelName" class="input-xlarge" required=""> 
+                     </div>
+                  </div>
+                  <!-- Select Basic -->
+                  <div class="control-group">
+                     <label class="control-label" for="table_sort">Default Sort</label>
+                     <div class="controls">
+                        <select id="table_sort" name="table_sort" class="input-xlarge">
+                           <option>asc</option>
+                           <option>desc</option>
+                        </select>
+                     </div>
+                  </div>
+                  <div class="control-group">
+                     <label class="control-label" for="conflict_resolution">Conflict Resolution Strategy</label>
+                     <div class="controls">
+                        <input id="conflict_resolution" name="conflict_resolution" type="text" value="IGNORE" class="input-xlarge" required=""> 
+                     </div>
+                  </div>
+                  <div class="control-group">
+                     
+                     <div class="controls">
+                        <input id="field1" name="field1" type="text" placeholder="" class="input-xlarge" required=""> 
+                        <select id="field_type1">
+                           <option value="INTEGER">integer</option>
+                           <option value="TEXT">text</option>
+                           <option value="REAL">real</option>
+                        </select>
+                        <input id="field_defaultvalue1" name="field_defaultvalue1" type="text" placeholder="default value" class="input-xlarge"> 
+
+                        <button id="remove" name="remove" class="btn btn-danger">Remove</button>
+                        <br />
+                         <input type="checkbox" id="field_unique1" autocomplete="off"/> Unique 
+                         <input type="checkbox" id="field_notnull1" autocomplete="off"/> Not null 
+                         <input type="radio" name="shouldSort" value="field1" checked="true"/> Sort on this 
+                     </div>
+                  </div>
+                  <!-- Button -->
+                  <div class="control-group">
+                     <label class="control-label" for="addField"></label>
+                     <div class="controls">
+                        <button id="addField" name="addField" class="btn btn-primary">Add another field</button>
+                     </div>
+                  </div>
+               </fieldset>
+               <!-- Button -->
+               <div class="control-group">
+                  <label class="control-label" for="buid"></label>
+                  <div class="controls">
+	                  <input type="button" class="btn" id="signin_button"   onClick='buildTable()' value="Build Content Provider"/> 
+                  </div>
+               </div>
+            </form>
+            <h3>Contract Output</h3>
+            <a href="javascript:$('#output').selectText()">Select</a>
+            <div id="output" style="background:#CCCCCC"></div>
+            <h3>Provider Output</h3>
+            <a href="javascript:$('#provider_output').selectText()">Select</a>
+            <div id="provider_output" style="background:#CCCCCC"/>
+            </div>
+         </div>
+      </div>
+   </div>
+
+   <input type="hidden" id="sortByField" />
+   <!-- /.container -->
+   <script type="text/javascript">
+      
+      //add a new node
+      $('#addField').on('click', addNewField);
+
+      function addNewField() {
+      	varCount++; 
+      	jHash.val("fields", varCount)
+      	var data={varCount: varCount}
+      	$node = tmpl("new_field_tmpl", data)
+      	$(this).parent().before($node);
+
+      	// bindChangeListener(".shouldSort")
+		bindChangeListener("#field"+varCount)
+		bindChangeListener("#field_type"+varCount)
+		bindChangeListener("#field_unique"+varCount)
+		bindChangeListener("#field_notnull"+varCount)
+		bindChangeListener("#field_defaultvalue"+varCount)
+
+      	$('form').on('click', '#remove', function(){ 
+      			// TODO delete values from input map and hash
+      			console.log("id: "+$(this).parent().attr("id"))
+      			deleteField($(this).parent().attr("id"))
+       			$(this).parent().parent().remove();
+       
+      	});
+      }
+
+      function deleteField(fieldIndex) {
+      	inputMap["field"+fieldIndex] = undefined
+      	inputMap["field_type"+fieldIndex] = undefined
+      	inputMap["field_unique"+fieldIndex] = undefined
+      	inputMap["field_notnull"+fieldIndex] = undefined
+      	inputMap["field_defaultvalue"+fieldIndex] = undefined
+
+
+      	jHash.val("field"+fieldIndex, undefined)
+      	jHash.val("field_type"+fieldIndex, undefined)
+      	jHash.val("field_unique"+fieldIndex, undefined)
+      	jHash.val("field_notnull"+fieldIndex, undefined)
+      	jHash.val("field_defaultvalue"+fieldIndex, undefined)
+
+      }
+      
+   </script>
+   <!-- Include all compiled plugins (below), or include individual files as needed -->
+   <script src="js/bootstrap.min.js"></script>
+</body>
+</html>
